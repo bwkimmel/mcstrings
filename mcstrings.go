@@ -25,6 +25,7 @@ var (
 	world  = flag.String("world", "", "Path to the world to scan (the directory containing level.dat)")
 	filter = flag.String("filter", "all", fmt.Sprintf("Only include entries matching a filter (one of: %s)", validOutputFilters()))
 	invert = flag.Bool("invert", false, "Output entries *not* matching the filter")
+	header = flag.Bool("header", true, "Include header row in the output")
 
 	compressionFilters = map[int8]func(io.Reader) (io.ReadCloser, error){
 		1: newGZipFilter,
@@ -115,6 +116,9 @@ func main() {
 	out := &output{
 		csv:    csv.NewWriter(os.Stdout),
 		filter: of,
+	}
+	if *header {
+		out.csv.Write([]string{"dimension", "chunk_x", "chunk_z", "nbt_path", "value"})
 	}
 	if err := readWorld(*world, out); err != nil {
 		log.Fatalf("ERROR: %v", err)

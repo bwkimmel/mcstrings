@@ -25,3 +25,6 @@ The strings are written as a CSV having the following columns:
     - `user_text`: User-generated strings (e.g., signs, books, renamed items,
       etc.).
   - `--invert`: Include only entries *not* matching the filter.
+  - `--header`: Include a header row in the output.
+  - `--output`: The file to write results to. If not specified, results are
+                written to stdout.

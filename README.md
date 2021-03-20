@@ -5,7 +5,7 @@ This is a tool to extract strings from a Minecraft world.
 
 ## Output Format
 
-The strings are written as a CSV having the following columns:
+The strings are written as a CSV file having the following columns:
 
   - `dimension`: indicates the dimension containing the string. One of:
     -  0: Overworld

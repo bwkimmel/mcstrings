@@ -27,6 +27,7 @@ var (
 	filter = flag.String("filter", "all", fmt.Sprintf("Only include entries matching a filter (one of: %s)", validOutputFilters()))
 	invert = flag.Bool("invert", false, "Output entries *not* matching the filter")
 	header = flag.Bool("header", true, "Include header row in the output")
+	output = flag.String("output", "", "File to write results to (if empty, results are written to stdout)")
 
 	// compressionFilters maps the compression type tag to the corresponding
 	// function for decorating a Reader for decompressing the chunk data. See
@@ -48,7 +49,7 @@ var (
 	signRE  = regexp.MustCompile(`.*/text\d+$`)
 )
 
-type output struct {
+type target struct {
 	csv    *csv.Writer
 	filter func(k, v string) bool
 }
@@ -166,14 +167,14 @@ func findStrings(x interface{}, cb func(path, value string)) {
 // readWorld processes the Minecraft world contained in the specified path. The
 // path should point to the directory containing the world's level.dat file.
 // See https://minecraft.gamepedia.com/Java_Edition_level_format.
-func readWorld(path string, out *output) error {
-	if err := readDimension(0, filepath.Join(path, "region"), out); err != nil {
+func readWorld(path string, t *target) error {
+	if err := readDimension(0, filepath.Join(path, "region"), t); err != nil {
 		return err
 	}
-	if err := readDimension(-1, filepath.Join(path, "DIM-1"), out); err != nil {
+	if err := readDimension(-1, filepath.Join(path, "DIM-1"), t); err != nil {
 		return err
 	}
-	if err := readDimension(1, filepath.Join(path, "DIM1"), out); err != nil {
+	if err := readDimension(1, filepath.Join(path, "DIM1"), t); err != nil {
 		return err
 	}
 	return nil
@@ -183,7 +184,7 @@ func readWorld(path string, out *output) error {
 // path. The path should point to the directory containing the .mca files for
 // the dimension. Dim indicates which dimension is being processed, and should
 // be 0 for overworld, -1 for nether, and 1 for the end.
-func readDimension(dim int, path string, out *output) error {
+func readDimension(dim int, path string, t *target) error {
 	dir, err := os.ReadDir(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -201,7 +202,7 @@ func readDimension(dim int, path string, out *output) error {
 		if _, err := fmt.Sscanf(e.Name(), "r.%d.%d.mca", &x, &z); err != nil {
 			return fmt.Errorf("invalid region file name %q", region)
 		}
-		readRegion(dim, x, z, region, out)
+		readRegion(dim, x, z, region, t)
 	}
 	return nil
 }
@@ -211,7 +212,7 @@ func readDimension(dim int, path string, out *output) error {
 // this region (see readDimension). X and Z are the coordinates of the region
 // (which are part of the file name).
 // See https://minecraft.gamepedia.com/Region_file_format.
-func readRegion(dim, x, z int, path string, out *output) error {
+func readRegion(dim, x, z int, path string, t *target) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("cannot open region file %q: %v", path, err)
@@ -243,10 +244,10 @@ func readRegion(dim, x, z int, path string, out *output) error {
 			return fmt.Errorf("cannot read chunk %d in region file %q: %v", i, path, err)
 		}
 		findStrings(chunk, func(path, value string) {
-			if !out.filter(path, value) {
+			if !t.filter(path, value) {
 				return
 			}
-			out.csv.Write([]string{
+			t.csv.Write([]string{
 				strconv.Itoa(dim),
 				strconv.Itoa(x*32 + dx),
 				strconv.Itoa(z*32 + dz),
@@ -254,8 +255,8 @@ func readRegion(dim, x, z int, path string, out *output) error {
 				value,
 			})
 		})
-		out.csv.Flush()
-		if err := out.csv.Error(); err != nil {
+		t.csv.Flush()
+		if err := t.csv.Error(); err != nil {
 			return fmt.Errorf("cannot write output: %v", err)
 		}
 	}
@@ -323,14 +324,23 @@ func main() {
 			return !orig(k, v)
 		}
 	}
-	out := &output{
-		csv:    csv.NewWriter(os.Stdout),
+	w := os.Stdout
+	if *output != "" {
+		f, err := os.Create(*output)
+		if err != nil {
+			log.Fatalf("Cannot open file %q for writing: %v", err)
+		}
+		defer f.Close()
+		w = f
+	}
+	t := &target{
+		csv:    csv.NewWriter(w),
 		filter: of,
 	}
 	if *header {
-		out.csv.Write([]string{"dimension", "chunk_x", "chunk_z", "nbt_path", "value"})
+		t.csv.Write([]string{"dimension", "chunk_x", "chunk_z", "nbt_path", "value"})
 	}
-	if err := readWorld(*world, out); err != nil {
+	if err := readWorld(*world, t); err != nil {
 		log.Fatalf("ERROR: %v", err)
 	}
 }

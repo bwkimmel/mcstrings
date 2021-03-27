@@ -24,15 +24,6 @@ import (
 )
 
 var (
-	// compressionFilters maps the compression type tag to the corresponding
-	// function for decorating a Reader for decompressing the chunk data. See
-	// https://minecraft.gamepedia.com/Region_file_format#Chunk_data.
-	compressionFilters = map[int8]func(io.Reader) (io.ReadCloser, error){
-		1: newGZipFilter,
-		2: zlib.NewReader,
-		3: newIdentFilter,
-	}
-
 	// outputFilters defines the predicates used for filtering NBT data from the
 	// emitted results.
 	outputFilters = map[string]func(k, v string) bool{
@@ -106,14 +97,20 @@ func containsUserText(k, v string) bool {
 	return false
 }
 
-// newGZipFilter creates a new filter for GZip-encoded chunks.
-func newGZipFilter(r io.Reader) (io.ReadCloser, error) {
-	return gzip.NewReader(r)
-}
-
-// newIdentFilter creates a new filter for uncompressed chunks.
-func newIdentFilter(r io.Reader) (io.ReadCloser, error) {
-	return ioutil.NopCloser(r), nil
+// wrapReader wraps a reader to apply the specified decompression algorithm. See
+// https://minecraft.gamepedia.com/Region_file_format#Chunk_data for valid
+// compression algorithms.
+func wrapReader(r io.Reader, compression int8) (io.ReadCloser, error) {
+	switch compression {
+	case 1:
+		return gzip.NewReader(r)
+	case 2:
+		return zlib.NewReader(r)
+	case 3:
+		return ioutil.NopCloser(r), nil
+	default:
+		return nil, fmt.Errorf("invalid compression type: %d", compression)
+	}
 }
 
 // join combines two segments of an NBT path.
@@ -286,15 +283,11 @@ func readChunk(r io.Reader) (map[string]interface{}, error) {
 	}
 	// The remaining length-1 bytes contains the (possibly-compressed) chunk data
 	// in NBT format.
-	cf, ok := compressionFilters[compression]
-	if !ok {
-		return nil, fmt.Errorf("invalid compression tag: %d", compression)
-	}
 	data := make([]byte, length-1)
 	if _, err := io.ReadFull(r, data); err != nil {
 		return nil, fmt.Errorf("cannot read chunk data: %v", err)
 	}
-	nbtr, err := cf(bytes.NewReader(data))
+	nbtr, err := wrapReader(bytes.NewReader(data), compression)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decompress chunk data: %v", err)
 	}

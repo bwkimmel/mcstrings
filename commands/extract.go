@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -361,7 +360,8 @@ func (e *Extract) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 	if e.output != "" {
 		f, err := os.Create(e.output)
 		if err != nil {
-			log.Fatalf("Cannot open file %q for writing: %v", err)
+			fmt.Fprintf(os.Stderr, "Cannot open file %q for writing: %v", e.output, err)
+			return subcommands.ExitFailure
 		}
 		defer f.Close()
 		w = f
@@ -372,7 +372,7 @@ func (e *Extract) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 		e.csv.Write([]string{"dimension", "chunk_x", "chunk_z", "nbt_path", "value"})
 	}
 	if err := e.readWorld(e.world); err != nil {
-		fmt.Fprintf(os.Stderr, "Cannot read world: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Extract: %v\n", err)
 		return subcommands.ExitFailure
 	}
 	return subcommands.ExitSuccess

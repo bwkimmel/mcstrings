@@ -171,10 +171,10 @@ func readWorld(path string, t *target) error {
 	if err := readDimension(0, filepath.Join(path, "region"), t); err != nil {
 		return err
 	}
-	if err := readDimension(-1, filepath.Join(path, "DIM-1"), t); err != nil {
+	if err := readDimension(-1, filepath.Join(path, "DIM-1", "region"), t); err != nil {
 		return err
 	}
-	if err := readDimension(1, filepath.Join(path, "DIM1"), t); err != nil {
+	if err := readDimension(1, filepath.Join(path, "DIM1", "region"), t); err != nil {
 		return err
 	}
 	return nil

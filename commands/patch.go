@@ -364,7 +364,11 @@ func (p *Patch) saveChunk() (err error) {
 		if end%4096 != 0 {
 			return fmt.Errorf("region file is invalid: not a multiple of 4kB")
 		}
-		offset = end
+		// If this is not already the last chunk in the file, relocate the chunk to
+		// the end of the file.
+		if offset+int64(sectors)*4096 < end {
+			offset = end
+		}
 	}
 	if newSectors != sectors {
 		if _, err := f.Seek(int64(4*(dz*32+dx)), 0); err != nil {

@@ -1,9 +1,9 @@
 MC Strings
 ==========
 
-This is a tool to extract strings from a Minecraft world.
+This is a tool to manipulate strings in a Minecraft world.
 
-## Output Format
+## Strings File Format
 
 The strings are written as a CSV file having the following columns:
 
@@ -16,15 +16,33 @@ The strings are written as a CSV file having the following columns:
   - `nbt_path`: The path in the NBT tree for that chunk that contains the string.
   - `value`: The string.
 
-## Options
+## Commands
 
-  - `--world` (required): The path to the world (i.e., the directory containing
+### Extract
+
+The `extract` command outputs strings to a CSV file as described above.
+
+  `mcstrings extract [<flags>...] <world>`
+
+  - `<world>` (required): The path to the world (i.e., the directory containing
     `level.dat`).
-  - `--filter`: Include only specific entries. One of:
+  - `-filter`: Include only specific entries. One of:
     - `all`: Output all strings.
     - `user_text`: User-generated strings (e.g., signs, books, renamed items,
       etc.).
-  - `--invert`: Include only entries *not* matching the filter.
-  - `--header`: Include a header row in the output.
-  - `--output`: The file to write results to. If not specified, results are
+  - `-invert`: Include only entries *not* matching the filter.
+  - `-header`: Include a header row in the output.
+  - `-output`: The file to write results to. If not specified, results are
                 written to stdout.
+
+### Patch
+
+The `patch` command patches strings from a CSV file as described above into a
+Minecraft world. Strings in the world that are not present in the CSV file are
+left unmodified.
+
+  `mcstrings patch -strings <csv_file> <world>`
+
+  - `<world>` (required): The path to the world (i.e., the directory containing
+    `level.dat`).
+  - `-strings` (required): The path to the CSV file to patch into the world.

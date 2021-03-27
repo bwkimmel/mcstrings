@@ -91,6 +91,8 @@ func (p *Patch) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) su
 	return subcommands.ExitSuccess
 }
 
+// field returns the nth string in an array, or "" if index is beyond the bounds
+// of the array.
 func field(rec []string, index int) string {
 	if len(rec) <= index {
 		return ""
@@ -98,6 +100,56 @@ func field(rec []string, index int) string {
 	return rec[index]
 }
 
+// patchString replaces the string at the specified NBT path in the currently
+// loaded chunk with a new value.
+func (p *Patch) patchString(path, value string) error {
+	var node interface{} = p.chunk.nbt
+	set := func() {}
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		component := dirRE.FindStringSubmatch(part)
+		if component == nil {
+			return fmt.Errorf("cannot parse nbt_path")
+		}
+		compound, ok := node.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("%s is not a TAG_Compound", strings.Join(parts[:i], "/"))
+		}
+		elem, ok := compound[component[1]]
+		if !ok {
+			return fmt.Errorf("cannot find %s", strings.Join(append(parts[:i], component[1]), "/"))
+		}
+		set = func() { compound[component[1]] = value }
+		node = elem
+		if len(component) < 3 || component[2] == "" { // No array index.
+			continue
+		}
+		index, err := strconv.Atoi(component[2])
+		if err != nil {
+			return fmt.Errorf("invalid index in nbt_path: %v", err)
+		}
+		array, ok := node.([]interface{})
+		if !ok {
+			return fmt.Errorf("%s is not a TAG_Array", strings.Join(append(parts[:i], component[1]), "/"))
+		}
+		if index < 0 || index >= len(array) {
+			return fmt.Errorf("index %d out of bounds; %s has length %d", index, strings.Join(append(parts[:i], component[1]), "/"), len(array))
+		}
+		set = func() { array[index] = value }
+		node = array[index]
+	}
+	oldValue, ok := node.(string)
+	if !ok {
+		return fmt.Errorf("%s is not a TAG_String", path)
+	}
+	if oldValue != value {
+		p.chunk.dirty = true
+		set()
+	}
+	return nil
+}
+
+// run patches the Minecraft world.
 func (p *Patch) run() error {
 	line := 0
 	for {
@@ -140,63 +192,15 @@ func (p *Patch) run() error {
 		if err := p.loadChunk(dim, x, z); err != nil {
 			return err
 		}
-		var node interface{} = p.chunk.nbt
-		set := func(string) {}
-		parts := strings.Split(path, "/")
-		for i, part := range parts {
-			component := dirRE.FindStringSubmatch(part)
-			if component == nil {
-				warn("cannot parse nbt_path")
-				break
-			}
-			compound, ok := node.(map[string]interface{})
-			if !ok {
-				warn("%s in dimension %d, chunk (%d, %d) is not a TAG_Compound", strings.Join(parts[:i], "/"), dim, x, z)
-				break
-			}
-			elem, ok := compound[component[1]]
-			if !ok {
-				warn("cannot find %s in dimension %d, chunk (%d, %d)", strings.Join(append(parts[:i], component[1]), "/"), dim, x, z)
-				break
-			}
-			set = func(s string) { compound[component[1]] = s }
-			node = elem
-			if len(component) < 3 || component[2] == "" {
-				continue
-			}
-			index, err := strconv.Atoi(component[2])
-			if err != nil {
-				warn("invalid index in nbt_path: %v", err)
-				break
-			}
-			array, ok := node.([]interface{})
-			if !ok {
-				warn("%s in dimension %d, chunk (%d, %d) is not a TAG_Array", strings.Join(append(parts[:i], component[1]), "/"), dim, x, z)
-				break
-			}
-			if index < 0 || index >= len(array) {
-				warn("index %d out of bounds; %s in dimension %d, chunk (%d, %d) has length %d", index, strings.Join(append(parts[:i], component[1]), "/"), dim, x, z, len(array))
-				break
-			}
-			set = func(s string) { array[index] = s }
-			node = array[index]
-		}
-		if !ok {
-			continue
-		}
-		oldValue, ok := node.(string)
-		if !ok {
-			warn("%s is not a TAG_String", path)
-			continue
-		}
-		if newValue := field(rec, 4); oldValue != newValue {
-			p.chunk.dirty = true
-			set(newValue)
+		if err := p.patchString(path, field(rec, 4)); err != nil {
+			return fmt.Errorf("Line %d: %v", line, err)
 		}
 	}
 	return p.saveChunk()
 }
 
+// dimensionPath returns the directory containing the region files for the
+// specified dimension.
 func (p *Patch) dimensionPath(dim int) (string, error) {
 	switch dim {
 	case 0:
@@ -210,6 +214,8 @@ func (p *Patch) dimensionPath(dim int) (string, error) {
 	}
 }
 
+// regionPath returns the path to the file containing the data for the specified
+// region.
 func (p *Patch) regionPath(dim, rx, rz int) (string, error) {
 	dimPath, err := p.dimensionPath(dim)
 	if err != nil {
@@ -218,6 +224,8 @@ func (p *Patch) regionPath(dim, rx, rz int) (string, error) {
 	return filepath.Join(dimPath, fmt.Sprintf("r.%d.%d.mca", rx, rz)), nil
 }
 
+// chunkPos returns the region x-z coordinates, and chunk offset offset x-z
+// coordinates within the region.
 func chunkPos(x, z int) (rx, rz, dx, dz int) {
 	rx, rz = x/32, z/32
 	dx, dz = x%32, z%32
@@ -232,6 +240,9 @@ func chunkPos(x, z int) (rx, rz, dx, dz int) {
 	return rx, rz, dx, dz
 }
 
+// loadChunk loads the specified chunk. If the specified chunk is already
+// loaded, no action is taken. If it is not, the currently-loaded chunk (if
+// there is one) is saved to disk and the new chunk is loaded.
 func (p *Patch) loadChunk(dim, x, z int) error {
 	if p.chunk != nil && p.chunk.dim == dim && p.chunk.x == x && p.chunk.z == z {
 		return nil
@@ -295,6 +306,8 @@ func wrapWriter(w io.Writer, compression int8) (io.WriteCloser, error) {
 	}
 }
 
+// saveChunk saves the currently-loaded chunk to disk if there is a chunk that
+// is loaded and if it is dirty.
 func (p *Patch) saveChunk() (err error) {
 	if p.chunk == nil || !p.chunk.dirty {
 		return nil
@@ -315,6 +328,8 @@ func (p *Patch) saveChunk() (err error) {
 		return fmt.Errorf("cannot open region file %q for writing: %v", err)
 	}
 	defer f.Close()
+	// Find the location in the region file of the currently-loaded chunk. See
+	// https://minecraft.gamepedia.com/wiki/Region_file_format#Chunk_location.
 	if _, err := f.Seek(int64(4*(dz*32+dx)), 0); err != nil {
 		return fmt.Errorf("cannot find chunk location: %v", err)
 	}
@@ -327,6 +342,9 @@ func (p *Patch) saveChunk() (err error) {
 	if _, err := f.Seek(offset, 0); err != nil {
 		return fmt.Errorf("cannot seek to chunk: %v", err)
 	}
+	// Read the chunk header, which includes a 4-byte length and a 1-byte
+	// compression type. See
+	// https://minecraft.gamepedia.com/wiki/Region_file_format#Chunk_data.
 	var (
 		length      int32
 		compression int8
@@ -348,7 +366,8 @@ func (p *Patch) saveChunk() (err error) {
 	}
 	w.Close()
 	length = int32(buf.Len() + 1) // Add one byte for compression type.
-	// Sector count includes the 4-byte length, the 1-byte compression type, and the compressed data.
+	// Sector count includes the 4-byte length, the 1-byte compression type, and
+	// the compressed data.
 	newSectors := (length + 4) / 4096
 	if (length+4)%4096 != 0 {
 		newSectors++
@@ -391,12 +410,12 @@ func (p *Patch) saveChunk() (err error) {
 	if _, err := io.Copy(f, &buf); err != nil {
 		return fmt.Errorf("could not write NBT data: %v", err)
 	}
-	pos, err := f.Seek(0, 1)
+	// Pad with zeros to the end of this 4kB sector.
+	// See https://minecraft.gamepedia.com/wiki/Region_file_format#Chunk_data.
+	pos, err := f.Seek(0, 1) // Get current position.
 	if err != nil {
 		return err
 	}
-	// Pad with zeros to the end of this 4kB sector.
-	// See https://minecraft.gamepedia.com/wiki/Region_file_format#Chunk_data.
 	if partial := pos % 4096; partial != 0 {
 		if _, err := io.CopyN(f, bytes.NewReader(zeros), 4096-partial); err != nil {
 			return fmt.Errorf("could not write padding: %v", err)

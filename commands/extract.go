@@ -199,7 +199,9 @@ func (e *Extract) readDimension(dim int, path string) error {
 		if _, err := fmt.Sscanf(entry.Name(), "r.%d.%d.mca", &x, &z); err != nil {
 			return fmt.Errorf("invalid region file name %q", region)
 		}
-		e.readRegion(dim, x, z, region)
+		if err := e.readRegion(dim, x, z, region); err != nil {
+			return err
+		}
 	}
 	return nil
 }

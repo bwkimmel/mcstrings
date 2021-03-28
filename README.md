@@ -9,7 +9,7 @@ This is a tool to manipulate strings in a Minecraft world.
   - Run the following command:
 
 ```shell
-go install github.com/bwkimmel/mcstrings
+go install github.com/bwkimmel/mcstrings@latest
 ```
 
 NOTE: See https://golang.org/ref/mod#go-install for details on where this

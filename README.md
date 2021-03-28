@@ -104,11 +104,11 @@ Suppose you have a world you want to distribute (located in `/path/to/world` in
 this example), but it contains private information that you would like to remove
 before doing so.
 
-    NOTE: The following instructions only modify text in the *world* (e.g, signs,
-    renamed mobs, books or renamed items in chests or dropped on the ground,
-    etc.). It does not affect player data (e.g., items in player inventories or
-    ender chests). For this, you should remove the contents of the `playerdata`
-    directory from your world.
+NOTE: The following instructions only modify text in the *world* (e.g, signs,
+renamed mobs, books or renamed items in chests or dropped on the ground, etc.).
+It does not affect player data (e.g., items in player inventories or ender
+chests). For this, you should remove the contents of the `playerdata` directory
+from your world.
 
 First, extract the user generated text from your world:
   
@@ -128,11 +128,11 @@ Import `strings.csv` into your spreadsheet program of choice, or edit the file
 by hand if you prefer. Edit the contents of the `value` column to your liking:
 either blanking out values or redacting just the information you wish to hide.
 
-    NOTE: Some strings contain serialized JSON (e.g., sign text will appear as
-    `{"text":"A line of text"}`). If modifying these, it is important that the
-    modified text is still valid JSON. For sign text (which can be identified by
-    `Text<n>` at the end of the NBT path may be blanked out entirely without
-    damaging the sign.
+NOTE: Some strings contain serialized JSON (e.g., sign text will appear as
+`{"text":"A line of text"}`). If modifying these, it is important that the
+modified text is still valid JSON. Sign text (which can be identified by one of
+`Text1` through `Text4` at the end of the NBT path) may be blanked out entirely
+without damaging the sign.
 
 Export your changes as a CSV file (e.g., `redacted.csv`). Then patch your
 changes back into the world:

@@ -41,6 +41,7 @@ possible for there to be sectors that are not referenced in the lookup table.
 These orphaned sectors could contain stale data. The compact command removes
 this data and shrinks the region files accordingly. See 
 https://minecraft.gamepedia.com/wiki/Region_file_format.
+
 `
 }
 

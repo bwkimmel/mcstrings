@@ -3,24 +3,36 @@ Minecraft Strings
 
 This is a tool to manipulate strings in a Minecraft world.
 
-## Strings File Format
+## Installing
 
-The strings are written as a CSV file having the following columns:
+  - Install Go, following the instructions at https://golang.org/doc/install.
+  - Run the following command:
 
-  - `dimension`: indicates the dimension containing the string. One of:
-    -  0: Overworld
-    - -1: Nether
-    -  1: The End
-  - `chunk_x`, `chunk_z`: The coordinates of the chunk in which the string is
-    located.
-  - `nbt_path`: The path in the NBT tree for that chunk that contains the string.
-  - `value`: The string.
+```shell
+go install github.com/bwkimmel/mcstrings
+```
+
+NOTE: See https://golang.org/ref/mod#go-install for details on where this
+installs executables. You may need to add this directory to your `PATH`.
 
 ## Commands
 
+For a list of commands, run:
+
+```
+mcstrings help
+```
+
+For help on a specific command, run:
+
+```
+mcstrings help <command>
+```
+
 ### Extract
 
-The `extract` command outputs strings to a CSV file as described above.
+The `extract` command outputs strings to a CSV file. See [Strings File
+Format](#strings-file-format) below.
 
   `mcstrings extract [<flags>...] <world>`
 
@@ -40,9 +52,9 @@ The `extract` command outputs strings to a CSV file as described above.
     WARNING: This command will modify your world in-place. You should make a
     backup of your world before proceeding.
 
-The `patch` command patches strings from a CSV file as described above into a
-Minecraft world. Strings in the world that are not present in the CSV file are
-left unmodified.
+The `patch` command patches strings from a CSV file into a Minecraft world.
+See [Strings File Format](#strings-file-format) below. Strings in the world that
+are not present in the CSV file are left unmodified.
 
   `mcstrings patch -strings <csv_file> <world>`
 
@@ -68,7 +80,20 @@ file format](https://minecraft.gamepedia.com/wiki/Region_file_format).
   - `<world>` (required): The path to the world (i.e., the directory containing
     `level.dat`).
 
-## Use Case: removing private user-generated text from a world.
+## Strings File Format
+
+The strings are written as a CSV file having the following columns:
+
+  - `dimension`: indicates the dimension containing the string. One of:
+    -  0: Overworld
+    - -1: Nether
+    -  1: The End
+  - `chunk_x`, `chunk_z`: The coordinates of the chunk in which the string is
+    located.
+  - `nbt_path`: The path in the NBT tree for that chunk that contains the string.
+  - `value`: The string.
+
+## Use Case: removing private user-generated text from a world
 
     WARNING: These instructions will modify your world in-place. You should make a
     backup of your world before proceeding.
@@ -85,13 +110,17 @@ before doing so.
 
 First, extract the user generated text from your world:
   
-  `mcstrings extract -filter user_text -output strings.csv /path/to/world`
+```shell
+mcstrings extract -filter user_text -output strings.csv /path/to/world
+```
 
 This should capture everything that might be user-generated. If you wish, you
 can double-check that nothing of interest was missed by listing all of the
 strings that were omitted by the above command:
 
-  `mcstrings extract -filter user_text -invert /path/to/world`
+```shell
+mcstrings extract -filter user_text -invert /path/to/world
+```
 
 Import `strings.csv` into your spreadsheet program of choice, or edit the file
 by hand if you prefer. Edit the contents of the `value` column to your liking:
@@ -106,16 +135,22 @@ either blanking out values or redacting just the information you wish to hide.
 Export your changes as a CSV file (e.g., `redacted.csv`). Then patch your
 changes back into the world:
 
-  `mcstrings patch -strings redacted.csv /path/to/world`
+```shell
+mcstrings patch -strings redacted.csv /path/to/world
+```
 
 This command may tell you that chunks were resized or relocated, and recommend
 that you run the [compact](#compact) command. This command removes orphaned
 sectors from your world's region files, which may contain stale data. It is a
 good idea to run this even if the `patch` command does not tell you to do so:
 
-  `mcstrings compact /path/to/world`
+```shell
+mcstrings compact /path/to/world
+```
 
 Open the world up in Minecraft to verify that your changes have been applied,
 and/or re-run the extract tool:
 
-  `mcstrings extract -filter user_text /path/to/world`
+```shell
+mcstrings extract -filter user_text /path/to/world
+```

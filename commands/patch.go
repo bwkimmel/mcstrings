@@ -390,9 +390,13 @@ func (p *Patch) saveChunk() (err error) {
 	if (length+4)%4096 != 0 {
 		newSectors++
 	}
+	// Check of the new sector count will fit in one byte.
 	if newSectors > 255 {
 		return fmt.Errorf("new chunk data is too large (%d sectors)", newSectors)
 	}
+	// If we require more 4kB sectors than the original chunk data occupied, don't
+	// assume we can expand into the next sector in the file. Instead, relocate
+	// the chunk to the end of the file.
 	if newSectors > sectors {
 		end, err := f.Seek(0, 2)
 		if err != nil {
@@ -408,6 +412,9 @@ func (p *Patch) saveChunk() (err error) {
 			offset = end
 		}
 	}
+	// If the sector count has changed, we need to go back to the chunk location
+	// table to write the new sector count (and possibly new offset if we've
+	// relocated the sector).
 	if newSectors != sectors {
 		log.Debugf("Resizing dimension %d, chunk (%d, %d) to from %d sectors to %d sectors.", dim, x, z, sectors, newSectors)
 		p.shouldCompact = true
@@ -419,6 +426,7 @@ func (p *Patch) saveChunk() (err error) {
 			return fmt.Errorf("cannot write new location for chunk (%d, %d) in %q: %v", x, z, regPath, err)
 		}
 	}
+	// Seek back to the chunk data.
 	if _, err := f.Seek(offset, 0); err != nil {
 		return fmt.Errorf("cannot seek to chunk: %v", err)
 	}

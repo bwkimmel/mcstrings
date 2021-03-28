@@ -18,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bwkimmel/mcstrings/log"
 	"github.com/google/subcommands"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 )
@@ -339,17 +340,17 @@ func (e *Extract) SetFlags(f *flag.FlagSet) {
 
 func (e *Extract) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	if f.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "<world> is required.")
+		log.Error("<world> is required.")
 		return subcommands.ExitUsageError
 	}
 	if f.NArg() > 1 {
-		fmt.Fprintln(os.Stderr, "Extra positional arguments found.")
+		log.Error("Extra positional arguments found.")
 		return subcommands.ExitUsageError
 	}
 	e.world = f.Arg(0)
 	of, ok := outputFilters[e.filter]
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Invalid filter (%q), must be one of %s.\n", e.filter, validOutputFilters())
+		log.Errorf("Invalid filter (%q), must be one of %s.", e.filter, validOutputFilters())
 		return subcommands.ExitUsageError
 	}
 	if e.invert {
@@ -362,7 +363,7 @@ func (e *Extract) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 	if e.output != "" {
 		f, err := os.Create(e.output)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Cannot open file %q for writing: %v", e.output, err)
+			log.Errorf("Cannot open file %q for writing: %v", e.output, err)
 			return subcommands.ExitFailure
 		}
 		defer f.Close()
@@ -374,7 +375,7 @@ func (e *Extract) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) 
 		e.csv.Write([]string{"dimension", "chunk_x", "chunk_z", "nbt_path", "value"})
 	}
 	if err := e.readWorld(e.world); err != nil {
-		fmt.Fprintf(os.Stderr, "Extract: %v\n", err)
+		log.Errorf("Extract: %v", err)
 		return subcommands.ExitFailure
 	}
 	return subcommands.ExitSuccess

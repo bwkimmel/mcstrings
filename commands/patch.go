@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/bwkimmel/mcstrings/log"
 	"github.com/google/subcommands"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 )
@@ -31,12 +32,16 @@ type Patch struct {
 	world   string
 	csv     *csv.Reader
 	chunk   *chunk
+
+	// shouldCompact indicates whether any chunks required resizing or relocating.
+	// If so, notify the user that they should compact the world.
+	shouldCompact bool
 }
 
 type chunk struct {
 	dim, x, z int
 	nbt       map[string]interface{}
-	dirty     bool
+	updates   int
 }
 
 func (*Patch) Name() string {
@@ -64,29 +69,32 @@ func (p *Patch) SetFlags(f *flag.FlagSet) {
 
 func (p *Patch) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	if f.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "<world> is required.")
+		log.Error("<world> is required.")
 		return subcommands.ExitUsageError
 	}
 	if f.NArg() > 1 {
-		fmt.Fprintln(os.Stderr, "Extra positional arguments found.")
+		log.Error("Extra positional arguments found.")
 		return subcommands.ExitUsageError
 	}
 	p.world = f.Arg(0)
 	if p.strings == "" {
-		fmt.Fprintln(os.Stderr, "--strings is required.")
+		log.Error("--strings is required.")
 		return subcommands.ExitUsageError
 	}
 	file, err := os.Open(p.strings)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Cannot open strings file: %v\n", err)
+		log.Errorf("Cannot open strings file: %v", err)
 		return subcommands.ExitFailure
 	}
 	defer file.Close()
 	p.csv = csv.NewReader(file)
 	p.csv.FieldsPerRecord = -1 // Don't check the number of fields.
 	if err := p.run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Patch: %v\n", err)
+		log.Errorf("Patch: %v", err)
 		return subcommands.ExitFailure
+	}
+	if p.shouldCompact {
+		log.Info("Some chunks were resized or relocated. It is recommended to compact the world.")
 	}
 	return subcommands.ExitSuccess
 }
@@ -143,7 +151,7 @@ func (p *Patch) patchString(path, value string) error {
 		return fmt.Errorf("%s is not a TAG_String", path)
 	}
 	if oldValue != value {
-		p.chunk.dirty = true
+		p.chunk.updates++
 		set()
 	}
 	return nil
@@ -167,7 +175,7 @@ func (p *Patch) run() error {
 		ok := true
 		warn := func(msg string, args ...interface{}) {
 			args = append([]interface{}{line}, args...)
-			fmt.Fprintf(os.Stderr, "Line %d: "+msg+"\n", args...)
+			log.Warnf("Line %d: "+msg, args...)
 			ok = false
 		}
 		dim, err := strconv.Atoi(field(rec, 0))
@@ -193,7 +201,7 @@ func (p *Patch) run() error {
 			return err
 		}
 		if err := p.patchString(path, field(rec, 4)); err != nil {
-			return fmt.Errorf("Line %d: %v", line, err)
+			return fmt.Errorf("line %d: %v", line, err)
 		}
 	}
 	return p.saveChunk()
@@ -255,6 +263,7 @@ func (p *Patch) loadChunk(dim, x, z int) error {
 	if err != nil {
 		return err
 	}
+	log.Debugf("Loading dimension %d, chunk (%d, %d) from %q.", dim, x, z, regPath)
 	f, err := os.Open(regPath)
 	if err != nil {
 		return fmt.Errorf("cannot open region file %q for reading: %v", regPath, err)
@@ -309,15 +318,16 @@ func wrapWriter(w io.Writer, compression int8) (io.WriteCloser, error) {
 // saveChunk saves the currently-loaded chunk to disk if there is a chunk that
 // is loaded and if it is dirty.
 func (p *Patch) saveChunk() (err error) {
-	if p.chunk == nil || !p.chunk.dirty {
+	if p.chunk == nil || p.chunk.updates == 0 {
 		return nil
 	}
-	x, z := p.chunk.x, p.chunk.z
+	dim, x, z := p.chunk.dim, p.chunk.x, p.chunk.z
 	rx, rz, dx, dz := chunkPos(x, z)
-	regPath, err := p.regionPath(p.chunk.dim, rx, rz)
+	regPath, err := p.regionPath(dim, rx, rz)
 	if err != nil {
 		return err
 	}
+	log.Debugf("Saving dimension %d, chunk (%d, %d) to %q with %d updates.", dim, x, z, regPath, p.chunk.updates)
 	defer func() {
 		if err != nil {
 			err = fmt.Errorf("saving chunk (%d, %d) to %q: %v", x, z, regPath, err)
@@ -386,10 +396,13 @@ func (p *Patch) saveChunk() (err error) {
 		// If this is not already the last chunk in the file, relocate the chunk to
 		// the end of the file.
 		if offset+int64(sectors)*4096 < end {
+			log.Debugf("Relocating dimension %d, chunk (%d, %d) from %d to end of file at %d.", dim, x, z, offset, end)
 			offset = end
 		}
 	}
 	if newSectors != sectors {
+		log.Debugf("Resizing dimension %d, chunk (%d, %d) to from %d sectors to %d sectors.", dim, x, z, sectors, newSectors)
+		p.shouldCompact = true
 		if _, err := f.Seek(int64(4*(dz*32+dx)), 0); err != nil {
 			return fmt.Errorf("cannot find chunk location: %v", err)
 		}

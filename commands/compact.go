@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/bwkimmel/mcstrings/log"
 	"github.com/google/subcommands"
 )
 
@@ -42,15 +43,15 @@ func (*Compact) SetFlags(*flag.FlagSet) {}
 
 func (*Compact) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	if f.NArg() == 0 {
-		fmt.Fprintln(os.Stderr, "<world> is required.")
+		log.Errorf("<world> is required.")
 		return subcommands.ExitUsageError
 	}
 	if f.NArg() > 1 {
-		fmt.Fprintln(os.Stderr, "Extra positional arguments found.")
+		log.Error("Extra positional arguments found.")
 		return subcommands.ExitUsageError
 	}
 	if err := compactWorld(f.Arg(0)); err != nil {
-		fmt.Fprintf(os.Stderr, "Compact: %v\n", err)
+		log.Errorf("Compact: %v", err)
 		return subcommands.ExitFailure
 	}
 	return subcommands.ExitSuccess
@@ -170,8 +171,10 @@ func compactRegion(path string) error {
 		}
 	}
 
-	size := int64(len(sectors)-1) * 4096
-	if err := f.Truncate(size); err != nil {
+	oldSize := int64(sectors[len(sectors)-1]) * 4096
+	newSize := int64(len(sectors)-1) * 4096
+	log.Debugf("Removing %d bytes from region file %q.", oldSize-newSize, path)
+	if err := f.Truncate(newSize); err != nil {
 		return fmt.Errorf("cannot truncate region file: %v", err)
 	}
 	return nil

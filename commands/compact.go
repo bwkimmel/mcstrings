@@ -202,7 +202,11 @@ func compactRegion(path string) error {
 	// compaction.
 	oldSize := int64(sectors[len(sectors)-1]) * 4096
 	newSize := int64(len(sectors)-1) * 4096
-	log.Debugf("Removing %d bytes from region file %q.", oldSize-newSize, path)
+	logLevel := log.Debugf
+	if newSize < oldSize {
+		logLevel = log.Infof
+	}
+	logLevel("Removing %d bytes from region file %q.", oldSize-newSize, path)
 	if err := f.Truncate(newSize); err != nil {
 		return fmt.Errorf("cannot truncate region file: %v", err)
 	}

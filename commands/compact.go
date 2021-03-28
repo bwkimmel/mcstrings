@@ -116,12 +116,20 @@ func compactRegion(path string) error {
 	}
 	defer f.Close()
 
+	// Read the chunk locations from the first 4kB of the file.
 	locs := make([]uint32, 1024)
 	if err := binary.Read(f, binary.BigEndian, locs); err != nil {
 		return fmt.Errorf("cannot read chunk locations: %v", err)
 	}
 
+	// sectors lists the occupied 4kB sectors in the file. The first two 4kB
+	// sectors are always occupied -- they contain the chunk location data and
+	// chunk timestamps. See
+	// https://minecraft.gamepedia.com/wiki/Region_file_format#Structure
 	sectors := []int32{0, 1}
+
+	// reloc maps original sectors to their new location. It will only be
+	// populated for sectors which are the starts of chunk data.
 	reloc := make(map[int32]int32)
 	for _, loc := range locs {
 		if loc == 0 {
@@ -129,25 +137,28 @@ func compactRegion(path string) error {
 		}
 		start := int32((loc & 0xffffff00) >> 8)
 		end := start + int32(loc&0xff)
-		reloc[start] = -1
+		reloc[start] = -1 // Add placeholder for now.
 		for sector := start; sector < end; sector++ {
 			sectors = append(sectors, sector)
 		}
 	}
 
+	// After sorting the list of occupied sectors, the index into this array will
+	// represent the sector index after compaction, and the value will represent
+	// the original sector index.
 	sort.Slice(sectors, func(i, j int) bool {
 		return sectors[i] < sectors[j]
 	})
 
-	buf := make([]byte, 4096)
-	for i, j := range sectors {
-		if _, ok := reloc[j]; ok {
+	buf := make([]byte, 4096)   // Buffer for transferring sector data.
+	for i, j := range sectors { // i = new sector, j = old sector
+		if _, ok := reloc[j]; ok { // Check for placeholder.
 			reloc[j] = int32(i)
 		}
 		if int32(i) > j {
 			return fmt.Errorf("cannot relocate sector later in file")
 		} else if int32(i) == j {
-			continue
+			continue // No relocation necessary for this sector.
 		}
 		if _, err := f.Seek(int64(j)*4096, 0); err != nil {
 			return fmt.Errorf("cannot seek to sector %d: %v", j, err)
@@ -165,6 +176,8 @@ func compactRegion(path string) error {
 		}
 	}
 
+	// Rebuild the chunk location table and write the updated table back to the
+	// first 4kB of the file.
 	for i, loc := range locs {
 		if loc == 0 {
 			continue
@@ -185,6 +198,8 @@ func compactRegion(path string) error {
 		return fmt.Errorf("cannot write new chunk locations: %v", err)
 	}
 
+	// Truncate the now-unoccupied end of the file to its new length after
+	// compaction.
 	oldSize := int64(sectors[len(sectors)-1]) * 4096
 	newSize := int64(len(sectors)-1) * 4096
 	log.Debugf("Removing %d bytes from region file %q.", oldSize-newSize, path)

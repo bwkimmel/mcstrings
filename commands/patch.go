@@ -201,7 +201,7 @@ func (p *Patch) run() error {
 			return err
 		}
 		if err := p.patchString(path, field(rec, 4)); err != nil {
-			return fmt.Errorf("line %d: %v", line, err)
+			return fmt.Errorf("line %d, dimension %d, chunk (%d, %d): %v", line, dim, x, z, err)
 		}
 	}
 	return p.saveChunk()

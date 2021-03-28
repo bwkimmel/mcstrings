@@ -150,6 +150,16 @@ func compactRegion(path string) error {
 		return sectors[i] < sectors[j]
 	})
 
+	// Sanity check: if a sector appears more than once, then there are
+	// overlapping sectors in the file.
+	prev := int32(-1)
+	for _, sector := range sectors {
+		if sector == prev {
+			return fmt.Errorf("found overlapping sectors in region file")
+		}
+		prev = sector
+	}
+
 	buf := make([]byte, 4096)   // Buffer for transferring sector data.
 	for i, j := range sectors { // i = new sector, j = old sector
 		if _, ok := reloc[j]; ok { // Check for placeholder.

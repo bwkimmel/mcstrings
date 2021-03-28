@@ -117,17 +117,18 @@ func compactRegion(path string) error {
 	defer f.Close()
 
 	locs := make([]uint32, 1024)
+	if err := binary.Read(f, binary.BigEndian, locs); err != nil {
+		return fmt.Errorf("cannot read chunk locations: %v", err)
+	}
+
 	sectors := []int32{0, 1}
 	reloc := make(map[int32]int32)
-	for i := 0; i < 1024; i++ {
-		if err := binary.Read(f, binary.BigEndian, &locs[i]); err != nil {
-			return fmt.Errorf("cannot read chunk location: %v", err)
-		}
-		if locs[i] == 0 {
+	for _, loc := range locs {
+		if loc == 0 {
 			continue
 		}
-		start := int32((locs[i] & 0xffffff00) >> 8)
-		end := start + int32(locs[i]&0xff)
+		start := int32((loc & 0xffffff00) >> 8)
+		end := start + int32(loc&0xff)
 		reloc[start] = -1
 		for sector := start; sector < end; sector++ {
 			sectors = append(sectors, sector)
@@ -164,22 +165,24 @@ func compactRegion(path string) error {
 		}
 	}
 
+	for i, loc := range locs {
+		if loc == 0 {
+			continue
+		}
+		start := int32((loc & 0xffffff00) >> 8)
+		count := int32(loc & 0xff)
+		newStart, ok := reloc[start]
+		if !ok {
+			return fmt.Errorf("cannot find new location for sector %d", start)
+		}
+		locs[i] = uint32(newStart<<8) | uint32(count)
+	}
+
 	if _, err := f.Seek(0, 0); err != nil {
 		return fmt.Errorf("cannot seek to start of file: %v", err)
 	}
-	for _, loc := range locs {
-		if loc != 0 {
-			start := int32((loc & 0xffffff00) >> 8)
-			count := int32(loc & 0xff)
-			newStart, ok := reloc[start]
-			if !ok {
-				return fmt.Errorf("cannot find new location for sector %d", start)
-			}
-			loc = uint32(newStart<<8) | uint32(count)
-		}
-		if err := binary.Write(f, binary.BigEndian, loc); err != nil {
-			return fmt.Errorf("cannot write new chunk location: %v", err)
-		}
+	if err := binary.Write(f, binary.BigEndian, locs); err != nil {
+		return fmt.Errorf("cannot write new chunk locations: %v", err)
 	}
 
 	oldSize := int64(sectors[len(sectors)-1]) * 4096

@@ -14,6 +14,7 @@ func main() {
 	subcommands.Register(subcommands.HelpCommand(), "")
 	subcommands.Register(subcommands.FlagsCommand(), "")
 	subcommands.Register(subcommands.CommandsCommand(), "")
+	subcommands.Register(&commands.Compact{}, "")
 	subcommands.Register(&commands.Extract{}, "")
 	subcommands.Register(&commands.Patch{}, "")
 

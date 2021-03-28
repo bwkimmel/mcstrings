@@ -15,7 +15,9 @@ import (
 )
 
 // Compact implements the compact command.
-type Compact struct{}
+type Compact struct {
+	skipConfirm bool
+}
 
 func (*Compact) Name() string {
 	return "compact"
@@ -42,9 +44,11 @@ https://minecraft.gamepedia.com/wiki/Region_file_format.
 `
 }
 
-func (*Compact) SetFlags(*flag.FlagSet) {}
+func (c *Compact) SetFlags(f *flag.FlagSet) {
+	f.BoolVar(&c.skipConfirm, "skip_confirmation", false, "Do not ask for confirmation before proceeding.")
+}
 
-func (*Compact) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+func (c *Compact) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
 	if f.NArg() == 0 {
 		log.Errorf("<world> is required.")
 		return subcommands.ExitUsageError
@@ -52,6 +56,9 @@ func (*Compact) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) su
 	if f.NArg() > 1 {
 		log.Error("Extra positional arguments found.")
 		return subcommands.ExitUsageError
+	}
+	if !c.skipConfirm {
+		confirm()
 	}
 	if err := compactWorld(f.Arg(0)); err != nil {
 		log.Errorf("Compact: %v", err)

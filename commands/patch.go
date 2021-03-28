@@ -260,6 +260,8 @@ func chunkPos(x, z int) (rx, rz, dx, dz int) {
 // loaded, no action is taken. If it is not, the currently-loaded chunk (if
 // there is one) is saved to disk and the new chunk is loaded.
 func (p *Patch) loadChunk(dim, x, z int) error {
+	// If we already had a different chunk loaded, save it before loading the new
+	// chunk.
 	if p.chunk != nil && p.chunk.dim == dim && p.chunk.x == x && p.chunk.z == z {
 		return nil
 	}
@@ -277,6 +279,8 @@ func (p *Patch) loadChunk(dim, x, z int) error {
 		return fmt.Errorf("cannot open region file %q for reading: %v", regPath, err)
 	}
 	defer f.Close()
+	// Find where the chunk data is located within the file. See
+	// https://minecraft.gamepedia.com/wiki/Region_file_format#Chunk_location.
 	if _, err := f.Seek(int64(4*(dz*32+dx)), 0); err != nil {
 		return fmt.Errorf("cannot find location of chunk (%d, %d) in %q: %v", x, z, regPath, err)
 	}
@@ -326,6 +330,8 @@ func wrapWriter(w io.Writer, compression int8) (io.WriteCloser, error) {
 // saveChunk saves the currently-loaded chunk to disk if there is a chunk that
 // is loaded and if it is dirty.
 func (p *Patch) saveChunk() (err error) {
+	// There is nothing to do if there is no loaded chunk or if the loaded chunk
+	// has no updates.
 	if p.chunk == nil || p.chunk.updates == 0 {
 		return nil
 	}
@@ -383,11 +389,13 @@ func (p *Patch) saveChunk() (err error) {
 		return fmt.Errorf("cannot encode NBT data: %v", err)
 	}
 	w.Close()
-	length = int32(buf.Len() + 1) // Add one byte for compression type.
+	// The length field in the chunk data includes the 1-byte compression type.
+	// See https://minecraft.gamepedia.com/wiki/Region_file_format#Chunk_data.
+	length = int32(buf.Len() + 1)
 	// Sector count includes the 4-byte length, the 1-byte compression type, and
 	// the compressed data.
 	newSectors := (length + 4) / 4096
-	if (length+4)%4096 != 0 {
+	if (length+4)%4096 != 0 { // Round up to next whole sector.
 		newSectors++
 	}
 	// Check of the new sector count will fit in one byte.
@@ -396,7 +404,8 @@ func (p *Patch) saveChunk() (err error) {
 	}
 	// If we require more 4kB sectors than the original chunk data occupied, don't
 	// assume we can expand into the next sector in the file. Instead, relocate
-	// the chunk to the end of the file.
+	// the chunk to the end of the file (exception: don't relocate if the sector
+	// is already located at the end of the file).
 	if newSectors > sectors {
 		end, err := f.Seek(0, 2)
 		if err != nil {
@@ -417,7 +426,7 @@ func (p *Patch) saveChunk() (err error) {
 	// relocated the sector).
 	if newSectors != sectors {
 		log.Debugf("Resizing dimension %d, chunk (%d, %d) to from %d sectors to %d sectors.", dim, x, z, sectors, newSectors)
-		p.shouldCompact = true
+		p.shouldCompact = true // Advise user to run compaction when we're done.
 		if _, err := f.Seek(int64(4*(dz*32+dx)), 0); err != nil {
 			return fmt.Errorf("cannot find chunk location: %v", err)
 		}

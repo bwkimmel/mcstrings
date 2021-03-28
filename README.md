@@ -14,6 +14,8 @@ go install github.com/bwkimmel/mcstrings
 
 NOTE: See https://golang.org/ref/mod#go-install for details on where this
 installs executables. You may need to add this directory to your `PATH`.
+Alternatively, use `git` to clone this repository and use `go run .` in place
+of `mcstrings` in all of the commands below.
 
 ## Commands
 

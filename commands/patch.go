@@ -146,7 +146,7 @@ func (p *Patch) patchString(path, value string) error {
 		}
 		array, ok := node.([]interface{})
 		if !ok {
-			return fmt.Errorf("%s is not a TAG_Array", strings.Join(append(parts[:i], component[1]), "/"))
+			return fmt.Errorf("%s is not a TAG_List", strings.Join(append(parts[:i], component[1]), "/"))
 		}
 		if index < 0 || index >= len(array) {
 			return fmt.Errorf("index %d out of bounds; %s has length %d", index, strings.Join(append(parts[:i], component[1]), "/"), len(array))

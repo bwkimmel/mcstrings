@@ -1,4 +1,4 @@
-// mcstrings is a tool for extracting strings from a Minecraft world.
+// mcstrings is a tool for manipulating strings in a Minecraft world.
 package main
 
 import (

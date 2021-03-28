@@ -77,7 +77,7 @@ lookup table. These orphaned sectors could contain stale data. The `compact`
 command removes this data and shrinks the region files accordingly. See [Region
 file format](https://minecraft.gamepedia.com/wiki/Region_file_format).
 
-  `go run github.com/bwkimmel compact <world>`
+  `mcstrings compact <world>`
 
   - `<world>` (required): The path to the world (i.e., the directory containing
     `level.dat`).

@@ -130,9 +130,9 @@ either blanking out values or redacting just the information you wish to hide.
 
 NOTE: Some strings contain serialized JSON (e.g., sign text will appear as
 `{"text":"A line of text"}`). If modifying these, it is important that the
-modified text is still valid JSON. Sign text (which can be identified by one of
-`Text1` through `Text4` at the end of the NBT path) may be blanked out entirely
-without damaging the sign.
+modified text is still valid JSON. As an exception to this rule, sign text
+(which can be identified by one of `Text1` through `Text4` at the end of the NBT
+path) may be blanked out entirely without damaging the sign.
 
 Export your changes as a CSV file (e.g., `redacted.csv`). Then patch your
 changes back into the world:

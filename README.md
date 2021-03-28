@@ -37,6 +37,9 @@ The `extract` command outputs strings to a CSV file as described above.
 
 ### Patch
 
+    WARNING: This command will modify your world in-place. You should make a
+    backup of your world before proceeding.
+
 The `patch` command patches strings from a CSV file as described above into a
 Minecraft world. Strings in the world that are not present in the CSV file are
 left unmodified.
@@ -48,6 +51,9 @@ left unmodified.
   - `-strings` (required): The path to the CSV file to patch into the world.
 
 ### Compact
+
+    WARNING: This command will modify your world in-place. You should make a
+    backup of your world before proceeding.
 
 The `compact` command removes unused 4kB sectors from a Minecraft world. The
 region files for a world contain 4kB sectors. The first 4kB of the file contains

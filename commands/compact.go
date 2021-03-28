@@ -29,6 +29,9 @@ func (*Compact) Usage() string {
 	return `compact <world>
 Compact removes unused sectors from a Minecraft world.
 
+WARNING: This command will modify your world in-place. You should make a backup
+of your world before proceeding.
+
 Compact removes unused 4kB sectors from a Minecraft world. The region files for
 a world contain 4kB sectors. The first 4kB of the file contains a lookup table
 indicating in which sectors to find the data for each chunk. It is therefore

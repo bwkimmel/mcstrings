@@ -1,5 +1,5 @@
-MC Strings
-==========
+Minecraft Strings
+=================
 
 This is a tool to manipulate strings in a Minecraft world.
 
@@ -57,7 +57,59 @@ lookup table. These orphaned sectors could contain stale data. The `compact`
 command removes this data and shrinks the region files accordingly. See [Region
 file format](https://minecraft.gamepedia.com/wiki/Region_file_format).
 
-  `mcstrings compact <world>`
+  `go run github.com/bwkimmel compact <world>`
 
   - `<world>` (required): The path to the world (i.e., the directory containing
     `level.dat`).
+
+## Use Case: removing private user-generated text from a world.
+
+    WARNING: These instructions will modify your world in-place. You should make a
+    backup of your world before proceeding.
+
+Suppose you have a world you want to distribute (located in `/path/to/world` in
+this example), but it contains private information that you would like to remove
+before doing so.
+
+    NOTE: The following instructions only modify text in the *world* (e.g, signs,
+    renamed mobs, books or renamed items in chests or dropped on the ground,
+    etc.). It does not affect player data (e.g., items in player inventories or
+    ender chests). For this, you should remove the contents of the `playerdata`
+    directory from your world.
+
+First, extract the user generated text from your world:
+  
+  `mcstrings extract -filter user_text -output strings.csv /path/to/world`
+
+This should capture everything that might be user-generated. If you wish, you
+can double-check that nothing of interest was missed by listing all of the
+strings that were omitted by the above command:
+
+  `mcstrings extract -filter user_text -invert /path/to/world`
+
+Import `strings.csv` into your spreadsheet program of choice, or edit the file
+by hand if you prefer. Edit the contents of the `value` column to your liking:
+either blanking out values or redacting just the information you wish to hide.
+
+    NOTE: Some strings contain serialized JSON (e.g., sign text will appear as
+    `{"text":"A line of text"}`). If modifying these, it is important that the
+    modified text is still valid JSON. For sign text (which can be identified by
+    `Text<n>` at the end of the NBT path may be blanked out entirely without
+    damaging the sign.
+
+Export your changes as a CSV file (e.g., `redacted.csv`). Then patch your
+changes back into the world:
+
+  `mcstrings patch -strings redacted.csv /path/to/world`
+
+This command may tell you that chunks were resized or relocated, and recommend
+that you run the [compact](#compact) command. This command removes orphaned
+sectors from your world's region files, which may contain stale data. It is a
+good idea to run this even if the `patch` command does not tell you to do so:
+
+  `mcstrings compact /path/to/world`
+
+Open the world up in Minecraft to verify that your changes have been applied,
+and/or re-run the extract tool:
+
+  `mcstrings extract -filter user_text /path/to/world`

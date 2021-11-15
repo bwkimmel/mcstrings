@@ -96,8 +96,14 @@ func compactDimension(path string) error {
 		if !strings.HasSuffix(entry.Name(), ".mca") {
 			continue
 		}
-		var x, z int
 		region := filepath.Join(path, entry.Name())
+		if fi, err := os.Stat(region); err != nil {
+			return fmt.Errorf("cannot stat region file %q: %v", region, err)
+		} else if fi.Size() == 0 {
+			log.Infof("Skipping empty region file %q", region)
+			continue
+		}
+		var x, z int
 		if _, err := fmt.Sscanf(entry.Name(), "r.%d.%d.mca", &x, &z); err != nil {
 			return fmt.Errorf("invalid region file name %q", region)
 		}
